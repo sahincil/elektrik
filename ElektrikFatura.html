@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Enerji Analiz Pro</title>
+    <title>Enerji Analiz Pro - Cloud</title>
     
     <!-- PWA ve Mobil Uygulama Meta Etiketleri -->
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -12,13 +12,17 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#6366f1">
     
-    <!-- Uygulama İkonu (Sizin için geçici bir yüksek kaliteli ikon ekledim) -->
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/5968/5968517.png">
     <link rel="shortcut icon" href="https://cdn-icons-png.flaticon.com/512/5968/5968517.png">
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- FIREBASE SDK (Bulut Bağlantısı) -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
         body { font-family: 'Plus Jakarta Sans', sans-serif; transition: all 0.3s ease; -webkit-tap-highlight-color: transparent; }
@@ -26,8 +30,13 @@
         .dark .glass { background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(255, 255, 255, 0.05); }
         .stat-card { transition: transform 0.2s ease; }
         .stat-card:hover { transform: translateY(-5px); }
-        /* Mobil ekranlarda kaymayı önlemek için */
-        html, body { overflow-x: hidden; position: relative; width: 100%; }
+        #loading-overlay {
+            position: fixed; inset: 0; z-index: 1000; 
+            background: var(--bg, #f8fafc); 
+            display: flex; align-items: center; justify-content: center;
+            transition: opacity 0.5s ease;
+        }
+        .dark #loading-overlay { background: #020617; }
     </style>
     <script>
         tailwind.config = {
@@ -41,6 +50,14 @@
     </script>
 </head>
 <body class="bg-slate-50 dark:bg-darkBg text-slate-900 dark:text-slate-100 min-h-screen transition-colors duration-300">
+
+    <!-- Yükleme Ekranı -->
+    <div id="loading-overlay">
+        <div class="flex flex-col items-center gap-4">
+            <div class="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+            <p class="text-sm font-bold opacity-60 animate-pulse">Bulut Verileri Senkronize Ediliyor...</p>
+        </div>
+    </div>
 
     <nav class="p-4 border-b glass sticky top-0 z-50 flex justify-between items-center px-6">
         <div class="flex items-center gap-3">
@@ -56,8 +73,6 @@
     </nav>
 
     <main class="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
-        
-        <!-- Filtreleme Alanı -->
         <div class="glass p-6 rounded-3xl shadow-xl grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
             <div class="space-y-2">
                 <label class="text-xs font-bold uppercase tracking-wider opacity-60 ml-1">Yıl Filtresi</label>
@@ -72,7 +87,6 @@
             </button>
         </div>
 
-        <!-- Özet Kartları -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             <div class="stat-card bg-gradient-to-br from-blue-600 to-indigo-700 p-6 rounded-3xl shadow-lg text-white h-36 flex flex-col justify-center">
                 <p class="text-sm font-medium opacity-80">Toplam Ödeme</p>
@@ -92,7 +106,6 @@
             </div>
         </div>
 
-        <!-- Grafikler -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div class="glass p-6 rounded-3xl shadow-xl">
                 <div class="flex items-center gap-2 mb-6 font-bold text-lg"><i data-lucide="line-chart" class="text-primary"></i> Yıllık Trend</div>
@@ -104,7 +117,6 @@
             </div>
         </div>
 
-        <!-- Detay Tablosu -->
         <div class="glass rounded-3xl shadow-xl overflow-hidden">
             <div class="p-6 border-b dark:border-slate-800 flex justify-between items-center">
                 <h3 class="font-bold text-lg flex items-center gap-2"><i data-lucide="table" class="text-primary"></i> Ödeme Detayları</h3>
@@ -125,7 +137,6 @@
         </div>
     </main>
 
-    <!-- Modal -->
     <div id="dataModal" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center z-[100] backdrop-blur-sm p-4">
         <div class="bg-white dark:bg-slate-900 p-8 rounded-3xl shadow-2xl max-w-md w-full border dark:border-slate-700">
             <div class="flex justify-between items-center mb-6">
@@ -151,6 +162,21 @@
     </div>
 
     <script>
+        // --- FIREBASE CONFIG (Bulut Bağlantısı) ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyA5N2FSLqPicNeBaBi3Ehj0iPG6HOUD98",
+            authDomain: "veriler-7a724.firebaseapp.com",
+            databaseURL: "https://veriler-7a724-default-rtdb.firebaseio.com",
+            projectId: "veriler-7a724",
+            storageBucket: "veriler-7a724.appspot.com",
+            messagingSenderId: "17059149175",
+            appId: "1:17059149175:web:3bab6f4a5fece2819755"
+        };
+
+        // Firebase Başlatma
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
         const INITIAL_DATA = {
             "2017": {"Ocak": 0, "Şubat": 0, "Mart": 230, "Nisan": 143, "Mayıs": 140, "Haziran": 138, "Temmuz": 148, "Ağustos": 137, "Eylül": 127, "Ekim": 117, "Kasım": 150, "Aralık": 120},
             "2018": {"Ocak": 181, "Şubat": 207, "Mart": 159, "Nisan": 163, "Mayıs": 164, "Haziran": 172, "Temmuz": 118, "Ağustos": 164, "Eylül": 172, "Ekim": 171, "Kasım": 196, "Aralık": 225},
@@ -165,33 +191,28 @@
         };
 
         const MONTHS = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
-        let appData = JSON.parse(localStorage.getItem('enerji_final_v6')) || INITIAL_DATA;
+        let appData = {};
         let trendChart, monthlyChart;
 
         document.addEventListener('DOMContentLoaded', () => {
             lucide.createIcons();
             initFilters();
             initCharts();
-            updateDashboard();
+            setupCloudSync();
             document.getElementById('themeToggle').addEventListener('click', () => document.documentElement.classList.toggle('dark'));
         });
 
         function initFilters() {
             const yFilter = document.getElementById('yearFilter'), mFilter = document.getElementById('monthFilter');
             const mYear = document.getElementById('modalYear'), mMonth = document.getElementById('modalMonth');
-
             yFilter.add(new Option("Tüm Yıllar", "ALL"));
-            Object.keys(appData).sort().forEach(y => { 
-                yFilter.add(new Option(y, y)); 
-                mYear.add(new Option(y, y)); 
+            Object.keys(INITIAL_DATA).sort().forEach(y => { 
+                yFilter.add(new Option(y, y)); mYear.add(new Option(y, y)); 
             });
-
             mFilter.add(new Option("Tüm Aylar", "ALL"));
             MONTHS.forEach(m => { 
-                mFilter.add(new Option(m, m)); 
-                mMonth.add(new Option(m, m)); 
+                mFilter.add(new Option(m, m)); mMonth.add(new Option(m, m)); 
             });
-
             yFilter.value = "ALL"; mFilter.value = "ALL";
             yFilter.onchange = updateDashboard; mFilter.onchange = updateDashboard;
         }
@@ -212,13 +233,37 @@
             });
         }
 
+        // --- BULUT SENKRONİZASYONU ---
+        function setupCloudSync() {
+            const dataRef = db.ref('payments');
+            
+            // Veritabanını Dinle (Realtime)
+            dataRef.on('value', (snapshot) => {
+                const data = snapshot.val();
+                if (data) {
+                    appData = data;
+                } else {
+                    // Veritabanı boşsa başlangıç verilerini yükle
+                    saveToCloud(INITIAL_DATA);
+                    appData = INITIAL_DATA;
+                }
+                document.getElementById('loading-overlay').style.opacity = '0';
+                setTimeout(() => document.getElementById('loading-overlay').style.display = 'none', 500);
+                updateDashboard();
+            });
+        }
+
+        function saveToCloud(data) {
+            db.ref('payments').set(data);
+        }
+
         function updateDashboard() {
             const selY = document.getElementById('yearFilter').value, selM = document.getElementById('monthFilter').value;
             let filtered = [];
             Object.keys(appData).forEach(y => {
                 if (selY === "ALL" || selY === y) {
                     MONTHS.forEach(m => {
-                        if (selM === "ALL" || selM === m) filtered.push({ y, m, val: appData[y][m] });
+                        if (selM === "ALL" || selM === m) filtered.push({ y, m, val: appData[y][m] || 0 });
                     });
                 }
             });
@@ -233,15 +278,15 @@
 
             const years = Object.keys(appData).sort();
             trendChart.data.labels = years;
-            trendChart.data.datasets[0].data = years.map(y => selM === "ALL" ? Object.values(appData[y]).reduce((a, b) => a + b, 0) : appData[y][selM]);
+            trendChart.data.datasets[0].data = years.map(y => selM === "ALL" ? Object.values(appData[y]).reduce((a, b) => a + b, 0) : (appData[y][selM] || 0));
             trendChart.update();
 
             if (selY !== "ALL") {
                 monthlyChart.data.labels = MONTHS;
-                monthlyChart.data.datasets[0].data = MONTHS.map(m => appData[selY][m]);
+                monthlyChart.data.datasets[0].data = MONTHS.map(m => appData[selY][m] || 0);
             } else {
                 monthlyChart.data.labels = years;
-                monthlyChart.data.datasets[0].data = years.map(y => selM === "ALL" ? Object.values(appData[y]).reduce((a, b) => a + b, 0) : appData[y][selM]);
+                monthlyChart.data.datasets[0].data = years.map(y => selM === "ALL" ? Object.values(appData[y]).reduce((a, b) => a + b, 0) : (appData[y][selM] || 0));
             }
             monthlyChart.update();
 
@@ -258,7 +303,7 @@
             const m = document.getElementById('monthFilter').value === "ALL" ? "Ocak" : document.getElementById('monthFilter').value;
             document.getElementById('modalYear').value = y;
             document.getElementById('modalMonth').value = m;
-            document.getElementById('modalAmount').value = appData[y][m];
+            document.getElementById('modalAmount').value = appData[y][m] || 0;
         }
 
         function closeModal() { document.getElementById('dataModal').classList.replace('flex', 'hidden'); }
@@ -266,11 +311,15 @@
         function saveData() {
             const y = document.getElementById('modalYear').value, m = document.getElementById('modalMonth').value, v = parseFloat(document.getElementById('modalAmount').value);
             if (isNaN(v)) return alert("Lütfen geçerli bir sayı girin.");
+
+            // Bulut verisini güncelle
             appData[y][m] = v;
-            localStorage.setItem('enerji_final_v6', JSON.stringify(appData));
-            updateDashboard();
+            saveToCloud(appData);
+            
             closeModal();
         }
     </script>
 </body>
 </html>
+
+
